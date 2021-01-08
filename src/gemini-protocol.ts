@@ -1,4 +1,5 @@
 import * as tls from 'tls'
+import { isIP } from 'net'
 
 export enum StatusCode {
   INPUT                       = 10,
@@ -92,8 +93,14 @@ export function request(urlstr: string, response?: Response) : Promise<Response>
     url = new URL(urlstr, response.redirects[0])
   return new Promise((resolve, reject) => {
     try {
+      const TLS_OPTIONS: tls.ConnectionOptions = {
+        port: parseInt(url.port) || 1965,
+        host: url.hostname,
+        rejectUnauthorized: false,
+        servername: isIP(url.hostname) ? undefined : url.hostname
+      }
       const socket: tls.TLSSocket =
-        tls.connect(parseInt(url.port) || 1965, url.hostname, { rejectUnauthorized: false }, () => {
+        tls.connect(TLS_OPTIONS, () => {
           if (!socket.write(`${url}\r\n`, 'utf8'))
             reject('failed to write to socket')
         })
