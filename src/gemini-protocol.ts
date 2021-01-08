@@ -98,7 +98,9 @@ export function request(urlstr: string, response?: Response) : Promise<Response>
             reject('failed to write to socket')
         })
       socket.on('data', (data: Buffer) => response.receive(data.toString()));
-      socket.on('close', () => {
+      socket.on('close', err => {
+        if (err)
+          return reject(err)
         try {
           response.parse()
         } catch(e) {
@@ -110,7 +112,8 @@ export function request(urlstr: string, response?: Response) : Promise<Response>
             .then(resp => resolve(resp))
         else
           resolve(response)
-      });
+      })
+      socket.on('error', console.error)
     } catch(e) {
       return reject(e)
     }

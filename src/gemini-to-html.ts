@@ -18,10 +18,11 @@ function fixupLink(input: string, base: string) {
   try {
     // informal guess about whether or not it's a relative URL
     // or a normal URL without the protocol and doubleslash
-    if ( input.indexOf('://') === -1 && input[0] !== '/'
-      && input.indexOf('.') !== -1
-      && (input.indexOf('/') === -1 ||
-        input.indexOf('/') >= input.indexOf('.')))
+    if ( input.indexOf('://') === -1 // foo://bar   (absolute)
+      && input[0] !== '/'            // /foo/bar    (relative)
+      && input.indexOf('.') !== -1   // foo/baz     (relative)
+      && input.indexOf('/') !== -1   // foo.txt     (relative)
+      && input.indexOf('/') >= input.indexOf('.')) // foo/bar.baz (relative), foo.bar/baz (absolute)
       input = 'gemini://' + input
     const url = mkurl(base, input, {alwaysNormalize: true})
     if (url.startsWith('gemini:'))
