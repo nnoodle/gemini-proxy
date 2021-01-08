@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "moduleResolution": "node",
+    "noImplicitAny": true,
+    "removeComments": true,
+    "preserveConstEnums": true,
+    "sourceMap": true,
+    "esModuleInterop": true,
+    "outDir": "dist"
+  },
+  "include": [ "src/**/*.ts" ],
+  "exclude": ["node_modules", "**/*.spec.ts"]
+}

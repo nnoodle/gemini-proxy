@@ -1,0 +1,15 @@
+{{> head}}
+    <hr/>
+    <code>{{ header }}</code>
+    <hr/>
+    <form class="input-form" action="/go" method="get">
+      <input type="hidden" name="url" value="{{ url }}" />
+      <input class="text-input"
+             title="Query"
+             type="{{ input_type }}"
+             name="q"
+             value="">
+      <input type="submit" value="Go!">
+    </form>
+{{ &body }}
+{{> tail}}
