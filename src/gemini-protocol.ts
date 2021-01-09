@@ -1,5 +1,6 @@
 import * as tls from 'tls'
 import { isIP } from 'net'
+import { transcode } from 'buffer'
 
 export enum StatusCode {
   INPUT                       = 10,
@@ -26,13 +27,41 @@ export function withinCategory(num: number, min: number, max?: number): boolean 
   return num >= min && num <= (max || min+9)
 }
 
+class MimeType {
+  mime: string
+
+  type: string
+  subtype: string
+
+  parameter: string
+  value: string
+
+  constructor (mime: string) {
+    const lower = (str: string) => (typeof str === 'string') ? str.toLowerCase() : str
+    mime = mime.replace(/\s/g, '')
+
+    if (mime.indexOf(';') !== -1)
+      [this.mime, this.type, this.subtype, this.parameter, this.value] = mime.match(
+        /(?<type>.*?)\/(?<subtype>.*?);(?:(?<parameter>.*)=(?<value>.*))?/)
+    else {
+      [this.mime, this.type, this.subtype] = mime.match(/(?<type>.*?)\/(?<subtype>.*)/)
+    }
+
+    this.type = lower(this.type)
+    this.subtype = lower(this.subtype)
+    this.parameter = lower(this.parameter)
+  }
+}
+
 export class Response {
   url: string
-  data: string
+  data: Buffer[]
 
   status: StatusCode
   meta: string
+  mime: MimeType
   body: string
+  rawBody: Buffer
 
   redirects: string[]
 
@@ -40,7 +69,7 @@ export class Response {
     this.url = url
     this.redirects = []
     this.status = 0
-    this.data = ''
+    this.data = []
   }
 
   static parseHeader(header: string) : [StatusCode, string] {
@@ -58,14 +87,41 @@ export class Response {
     return [status, meta]
   }
 
-  receive(input: string) {
-    this.data += input
+  receive(buf: Buffer) {
+    this.data.push(buf)
   }
 
   parse() {
-    const headend = this.data.indexOf('\r\n'); // odd
-    [this.status, this.meta] = Response.parseHeader(this.data.slice(0, headend))
-    this.body = this.data.slice(headend+2)
+    const buf: Buffer = Buffer.concat(this.data)
+    const headend = buf.indexOf('\r\n'); // suppress error
+    [this.status, this.meta] = Response.parseHeader(buf.slice(0, headend).toString())
+    this.rawBody = buf.slice(headend+2)
+    if (this.status === 20) {
+      try {
+        this.mime = new MimeType(this.meta)
+      } catch(e) {
+        console.error(e)
+        this.mime = new MimeType('text/gemini;charset=UTF-8')
+      }
+      switch (this.mime.type) {
+        case 'video':
+        case 'image':
+        case 'audio':
+          this.body = this.rawBody.toString('base64')
+          break
+        default:
+          if ( this.mime.parameter
+            && this.mime.parameter === 'charset'
+            && this.mime.value.toLowerCase() === 'iso-8859-1') {
+            // this doesn't actually work
+            this.body = transcode(this.rawBody, 'latin1', 'utf8').toString()
+          }
+          this.body = this.rawBody.toString()
+          break
+      }
+    } else {
+      this.body = this.rawBody.toString()
+    }
   }
 
   redirectp() : string | false {
@@ -77,7 +133,7 @@ export class Response {
       console.log('redirecting from', this.url, 'to', this.meta)
       this.redirects.unshift(this.url)
       this.status = 0
-      this.data = ''
+      this.data = []
       this.url = this.meta
       return this.url
     }
@@ -93,6 +149,7 @@ export function request(urlstr: string, response?: Response) : Promise<Response>
     url = new URL(urlstr, response.redirects[0])
   return new Promise((resolve, reject) => {
     try {
+      let socketerr: Error
       const TLS_OPTIONS: tls.ConnectionOptions = {
         port: parseInt(url.port) || 1965,
         host: url.hostname,
@@ -104,10 +161,10 @@ export function request(urlstr: string, response?: Response) : Promise<Response>
           if (!socket.write(`${url}\r\n`, 'utf8'))
             reject('failed to write to socket')
         })
-      socket.on('data', (data: Buffer) => response.receive(data.toString()));
+      socket.on('data', (data: Buffer) => response.receive(data));
       socket.on('close', err => {
         if (err)
-          return reject(err)
+          return reject(socketerr)
         try {
           response.parse()
         } catch(e) {
@@ -120,7 +177,7 @@ export function request(urlstr: string, response?: Response) : Promise<Response>
         else
           resolve(response)
       })
-      socket.on('error', console.error)
+      socket.on('error', e => socketerr = e)
     } catch(e) {
       return reject(e)
     }

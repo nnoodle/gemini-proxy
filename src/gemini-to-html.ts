@@ -1,28 +1,29 @@
 import { parse, Token, Link, Heading } from './parse-gemini'
-import { buildAbsoluteURL as mkurl } from 'url-toolkit'
+import { buildAbsoluteURL as mkurl, normalizePath } from 'url-toolkit'
 
 const tag = (tagtype: string, attributes: string, content: string) =>
   `<${tagtype} ${attributes}>${content}</${tagtype}>`
 
 const ltyp = (symbol: string, classes?: string) =>
-  tag('span', `class="section_type ${classes}"`, symbol)
+  tag('span', `class="section_type ${classes || ''}"`, symbol)
 const cont = (tagtype: string, content: string, classes?: string) =>
-  tag(tagtype, `class="section_content ${classes}"`, content)
+  tag(tagtype, `class="section_content ${classes || ''}"`, content)
 
 function proxify(url: string) : string {
   return '/go?url='+encodeURIComponent(url)
 }
 
 function fixupLink(input: string, base: string) {
-  // this still fails torture test 0010
   try {
+    input = normalizePath(input)
     // informal guess about whether or not it's a relative URL
     // or a normal URL without the protocol and doubleslash
     if ( input.indexOf('://') === -1 // foo://bar   (absolute)
       && input[0] !== '/'            // /foo/bar    (relative)
       && input.indexOf('.') !== -1   // foo/baz     (relative)
       && input.indexOf('/') !== -1   // foo.txt     (relative)
-      && input.indexOf('/') >= input.indexOf('.')) // foo/bar.baz (relative), foo.bar/baz (absolute)
+      && !input.startsWith('..')     // ../foo.txt  (relative)
+      && input.indexOf('/') > input.indexOf('.')) // foo/bar.baz (relative), foo.bar/baz (absolute)
       input = 'gemini://' + input
     const url = mkurl(base, input, {alwaysNormalize: true})
     if (url.startsWith('gemini:'))

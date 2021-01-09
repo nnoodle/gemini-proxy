@@ -2,9 +2,10 @@
   "name": "gemini-proxy",
   "version": "0.1.0",
   "description": "a gemini proxy",
-  "main": "app.js",
+  "main": "dist/app.js",
   "scripts": {
     "start": "node --enable-source-maps dist/app.js",
+    "debug": "node --inspect=localhost:5858 dist/app.js",
     "build": "tsc --build tsconfig.json",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
